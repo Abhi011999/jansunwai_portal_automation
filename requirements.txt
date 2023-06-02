@@ -1,0 +1,5 @@
+selenium
+pandas
+openpyxl
+thefuzz[speedup]
+python-Levenshtein
