@@ -25,10 +25,7 @@ def clear_terminal():
 
 def update_beneficiary_field(driver, element_id, row, prev_element_selector, row_key):
     prev_elements = driver.find_elements(By.CSS_SELECTOR, prev_element_selector)
-    print(element_id, prev_elements)
     val = int(row[row_key])
-    print(val)
-    print()
 
     if len(prev_elements) > 0:
         prev_val = int(prev_elements[-1].text.split("=")[1])
@@ -42,5 +39,5 @@ def update_beneficiary_field(driver, element_id, row, prev_element_selector, row
 def close_annoying_popup(driver):
     with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
         WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.CLASS_NAME, "close")))
-        driver.find_element(By.LINK_TEXT, "×").click()
+        WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.LINK_TEXT, "×"))).click()
         driver.implicitly_wait(1)

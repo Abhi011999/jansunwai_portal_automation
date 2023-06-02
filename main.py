@@ -22,8 +22,8 @@ SKIP_SUBMIT = False
 
 ONE_MONTH = True
 RESUME = True
-START_MONTH = "May-2022"
-START_DISTRICT = "KANPUR DEHAT"
+START_MONTH = "June-2022"
+START_DISTRICT = "AGRA"
 
 # if LOOP_ONCE is true then district is taken from this const
 DISTRICT_IN_DATA = "ALIGARH -[AL]"
@@ -202,8 +202,9 @@ try:
             driver.find_element(By.CSS_SELECTOR, "#closebutton").click()
             driver.implicitly_wait(1)
         
-        for j, district in enumerate(DISTRICTS[start_district_index:]):
+        for j, district in enumerate(DISTRICTS[start_district_index:], start=start_district_index):
             last_processed_district = district
+            
             # District
             district_dropdown.click()
             district_dropdown.find_element(By.XPATH, f"//option[. = '{district}']").click()
