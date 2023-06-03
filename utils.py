@@ -28,8 +28,12 @@ def update_beneficiary_field(driver, element_id, row, prev_element_selector, row
     val = int(row[row_key])
 
     if len(prev_elements) > 0:
-        prev_val = int(prev_elements[-1].text.split("=")[1])
+        try:
+            prev_val = int(prev_elements[-1].text.split("=")[1])
+        except IndexError:
+            prev_val = 0
         val = max(prev_val, val)
+        print(element_id, val)
 
     element = driver.find_element(By.ID, element_id)
     element.clear()
@@ -37,7 +41,7 @@ def update_beneficiary_field(driver, element_id, row, prev_element_selector, row
 
 
 def close_annoying_popup(driver):
-    with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
+    with contextlib.suppress(NoSuchElementException, ElementNotInteractableException, TimeoutException):
         WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.CLASS_NAME, "close")))
         WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.LINK_TEXT, "×"))).click()
         driver.implicitly_wait(1)

@@ -1,9 +1,10 @@
+import time
+import pickle
 import contextlib
 
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import *
@@ -12,8 +13,6 @@ from utils import *
 
 
 # TODO:
-# Add WITHOUT_SUBMIT flag
-# Replace all popup closes with close_annoying_popup(driver)
 # Refactor to take arguments from command line using argparse
 
 # Dev Flags
@@ -22,8 +21,9 @@ SKIP_SUBMIT = False
 
 ONE_MONTH = True
 RESUME = True
-START_MONTH = "June-2022"
-START_DISTRICT = "AGRA"
+RESUME_MONTH = "June-2022"
+RESUME_DISTRICT = "LUCKNOW"
+RESUME_FILE = "resume_data.pickle"
 
 # if LOOP_ONCE is true then district is taken from this const
 DISTRICT_IN_DATA = "ALIGARH -[AL]"
@@ -159,23 +159,43 @@ WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR,
 year_dropdown.click()
 year_dropdown.find_element(By.XPATH, f"//option[. = '{FINANCIAL_YEAR}']").click()
 
+# Number of total months
+total_months = len(SCHEME_MONTHS)
+
+# Number of total districts
+total_districts = len(DISTRICTS)
+
+# Start time
+start_time = time.time()
+remaining_minutes = 0
+remaining_seconds = 0
+
 try:
     # Resume logic
     if RESUME:
         print("Resume flag set, resuming from last processed month and district...")
-        print("Month - ", START_MONTH)
-        print("District - ", START_DISTRICT)
+        print("Trying reading from pickle file...")
+
+        try:
+            with open(RESUME_FILE, 'rb') as file:
+                current_status = pickle.load(file)
+                start_month = current_status['month']
+                start_district = current_status['district']
+        except FileNotFoundError:
+            print("Pickle file not found, reading from resume constants...")
+            start_month = RESUME_MONTH
+            start_district = RESUME_DISTRICT
 
         # Get the index of the starting month
-        start_month_index = SCHEME_MONTHS.index(START_MONTH)
+        start_month_index = SCHEME_MONTHS.index(start_month)
         
         # Get the index of the starting district
-        start_district_index = DISTRICTS.index(START_DISTRICT)
+        start_district_index = DISTRICTS.index(start_district)
     else:
         start_month_index = 0
         start_district_index = 0
     
-    for month in SCHEME_MONTHS[start_month_index:]:
+    for i, month in enumerate(SCHEME_MONTHS[start_month_index:]):
         last_processed_month = month
 
         print("Reading excel file...")
@@ -221,6 +241,8 @@ try:
             print(f"------------------ {month} ------------------")
             print()
             print(f"------ {district} ------")
+            print()
+            print(f"Estimated time left for {month} in {district}: {remaining_minutes} minutes {remaining_seconds} seconds")
             
             # Get district name from the dataframe
             district_in_data = df.loc[j + 1, "Scheme Name"]
@@ -316,14 +338,46 @@ try:
 
             # Scroll to the top of the page
             driver.execute_script("window.scrollTo(0, 0);")
-        
+
+            # Calculate elapsed time
+            elapsed_time = time.time() - start_time
+
+            # Calculate completed districts and months
+            completed_districts = j
+            completed_months = (j * total_months) + (i + 1)
+
+            # Calculate remaining districts and months
+            remaining_districts = total_districts - completed_districts - 1
+            remaining_months = total_months - completed_months
+
+            # Calculate average time per month
+            avg_time_per_month = elapsed_time / completed_months if completed_months > 0 else 0
+
+            # Calculate estimated remaining time
+            estimated_remaining_time = avg_time_per_month * remaining_months
+
+            # Convert remaining time to minutes and seconds
+            remaining_minutes = int(estimated_remaining_time / 60)
+            remaining_seconds = int(estimated_remaining_time % 60)
+            
         if ONE_MONTH:
             input("One month completed, press enter to exit...")
             exit(0)
+
 except Exception as e:
     print("An error occured - ", e)
     print("Last Processed Month - ", last_processed_month),
     print("Last Processed District - ", last_processed_district)
+    print("Saving last status...")
+    
+    # Save current month and district to a pickle file
+    current_status = {
+        'month': last_processed_month,
+        'district': last_processed_district
+    }
+    with open(RESUME_FILE, 'wb') as file:
+        pickle.dump(current_status, file)
+    
     with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
         error_element = driver.find_element(By.CSS_SELECTOR, "body > div:nth-child(3) > div > h3")
 
