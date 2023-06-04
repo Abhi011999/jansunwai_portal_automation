@@ -13,16 +13,18 @@ from utils import *
 
 
 # TODO:
+# Extract out load/save resume data logic to utils.py
+# Estimated time left logic
 # Refactor to take arguments from command line using argparse
 
 # Dev Flags
 DRY_RUN = False
 SKIP_SUBMIT = False
 
-ONE_MONTH = True
+ONE_MONTH = False
 RESUME = True
-RESUME_MONTH = "June-2022"
-RESUME_DISTRICT = "LUCKNOW"
+RESUME_MONTH = "January-2023"
+RESUME_DISTRICT = "AGRA"
 RESUME_FILE = "resume_data.pickle"
 
 # if LOOP_ONCE is true then district is taken from this const
@@ -165,11 +167,6 @@ total_months = len(SCHEME_MONTHS)
 # Number of total districts
 total_districts = len(DISTRICTS)
 
-# Start time
-start_time = time.time()
-remaining_minutes = 0
-remaining_seconds = 0
-
 try:
     # Resume logic
     if RESUME:
@@ -185,6 +182,14 @@ try:
             print("Pickle file not found, reading from resume constants...")
             start_month = RESUME_MONTH
             start_district = RESUME_DISTRICT
+            
+            print("Writing to pickle file...")
+            current_status = {
+                'month': start_month,
+                'district': start_district
+            }
+            with open(RESUME_FILE, 'wb') as file:
+                pickle.dump(current_status, file)
 
         # Get the index of the starting month
         start_month_index = SCHEME_MONTHS.index(start_month)
@@ -214,13 +219,15 @@ try:
         with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "close")))
             driver.find_element(By.LINK_TEXT, "×").click()
-            driver.implicitly_wait(1)
 
         # Close "Previous Month Beneficiary Details" popup
         with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#myModal > div > div > div.modal-header.modal-header-info > h2")))
             driver.find_element(By.CSS_SELECTOR, "#closebutton").click()
-            driver.implicitly_wait(1)
+        
+        # If resuming and this is other than the first month, start from the first district
+        if i != 0:
+            start_district_index = 0
         
         for j, district in enumerate(DISTRICTS[start_district_index:], start=start_district_index):
             last_processed_district = district
@@ -233,7 +240,7 @@ try:
             with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#myModal > div > div > div.modal-header.modal-header-info > h2")))
                 driver.find_element(By.CSS_SELECTOR, "#closebutton").click()
-                driver.implicitly_wait(5)
+                driver.implicitly_wait(1)
             
             clear_terminal()
             print(f"------------------ {SCHEME_NAME} ------------------")
@@ -242,7 +249,6 @@ try:
             print()
             print(f"------ {district} ------")
             print()
-            print(f"Estimated time left for {month} in {district}: {remaining_minutes} minutes {remaining_seconds} seconds")
             
             # Get district name from the dataframe
             district_in_data = df.loc[j + 1, "Scheme Name"]
@@ -254,19 +260,14 @@ try:
             #
             # Handling some edge cases where the previous data is different from the one in the portal
             update_beneficiary_field(driver, "numberofBenificiaries", row, "#noOfBen > msgcomp", "No. of beneficiaries through Normative Central & State share(Should be unique cumulative)")
-            close_annoying_popup(driver)
-            
+
             update_beneficiary_field(driver, "numberofAdditionalBenificiaries", row, "#noOfaddBeneficiary > msgcomp", "No. of additional beneficiaries supported by State , if any (Should be unique cumulative)")
-            close_annoying_popup(driver)
             
-            update_beneficiary_field(driver, "numberofBenificiariesRecordDigitized", row, "#noOfBeneficiaryRecordDizited > msgcomp", "No. of beneficiaries record digitized(Should be unique cumulative)")
-            close_annoying_popup(driver)
+            val = update_beneficiary_field(driver, "numberofBenificiariesRecordDigitized", row, "#noOfBeneficiaryRecordDizited > msgcomp", "No. of beneficiaries record digitized(Should be unique cumulative)")
             
-            update_beneficiary_field(driver, "numberofAadharAuthenticated", row, "#noOfAadhar > msgcomp", "No. of Aadhaar authenticated and seeded Beneficiaries (Should be unique cumulative)")
-            close_annoying_popup(driver)
+            update_beneficiary_field(driver, "numberofAadharAuthenticated", row, "#noOfAadhar > msgcomp", "No. of Aadhaar authenticated and seeded Beneficiaries (Should be unique cumulative)", val)
             
             update_beneficiary_field(driver, "totalMobileNumberCaptured", row, "#totalMobileCapturerd > msgcomp", "No. of beneficiaries for whom mobile number is captured")
-            close_annoying_popup(driver)
             
             central_funds = str(int(row["Central Share fund transferred"]))
             driver.find_element(By.ID, "centralSharedfundTransfered").clear()
@@ -322,43 +323,33 @@ try:
                 driver.find_element(By.ID, "lockbutton").click()
 
                 # Wait for popup
-                status = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#messgdec > div")))
+                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#messgdec > div")))
+                status = driver.find_elements(By.XPATH, '//*[@id="messgdec"]/div')[1]
 
-                if "error" in status.text:
+                if "success" not in status.text.lower():
                     print("An error occured - ", status.text)
                     print("Current Month - ", month),
                     print("Current District - ", district)
-                    print("Exiting...")
+                    print("Saving last status...")
+
+                    # Save current month and district to a pickle file
+                    current_status = {
+                        'month': last_processed_month,
+                        'district': last_processed_district
+                    }
+                    with open(RESUME_FILE, 'wb') as file:
+                        pickle.dump(current_status, file)
+                    
+                    print("Exiting in 60 seconds...")
+                    time.sleep(60)
                     exit(1)
                 
                 # Closing popup
-                element = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.LINK_TEXT, "×")))
+                element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.LINK_TEXT, "×")))
                 element.click()
-                driver.implicitly_wait(1)
 
             # Scroll to the top of the page
             driver.execute_script("window.scrollTo(0, 0);")
-
-            # Calculate elapsed time
-            elapsed_time = time.time() - start_time
-
-            # Calculate completed districts and months
-            completed_districts = j
-            completed_months = (j * total_months) + (i + 1)
-
-            # Calculate remaining districts and months
-            remaining_districts = total_districts - completed_districts - 1
-            remaining_months = total_months - completed_months
-
-            # Calculate average time per month
-            avg_time_per_month = elapsed_time / completed_months if completed_months > 0 else 0
-
-            # Calculate estimated remaining time
-            estimated_remaining_time = avg_time_per_month * remaining_months
-
-            # Convert remaining time to minutes and seconds
-            remaining_minutes = int(estimated_remaining_time / 60)
-            remaining_seconds = int(estimated_remaining_time % 60)
             
         if ONE_MONTH:
             input("One month completed, press enter to exit...")
@@ -381,8 +372,11 @@ except Exception as e:
     with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
         error_element = driver.find_element(By.CSS_SELECTOR, "body > div:nth-child(3) > div > h3")
 
-        if "expired" in error_element.text:
+        if "expired" in error_element.text.lower():
             print("Session expired, login again!")
             print("Exiting...")
             exit(0)
+    
+    print("Exiting with error in 60 seconds...")
+    time.sleep(60)
     raise e
