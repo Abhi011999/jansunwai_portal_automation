@@ -23,8 +23,8 @@ SKIP_SUBMIT = False
 
 ONE_MONTH = False
 RESUME = True
-RESUME_MONTH = "January-2023"
-RESUME_DISTRICT = "AGRA"
+RESUME_MONTH = "March-2023"
+RESUME_DISTRICT = "SHAMLI"
 RESUME_FILE = "resume_data.pickle"
 
 # if LOOP_ONCE is true then district is taken from this const
@@ -238,7 +238,9 @@ try:
 
             # Close "Previous Month Beneficiary Details" popup
             with contextlib.suppress(NoSuchElementException, ElementNotInteractableException):
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#myModal > div > div > div.modal-header.modal-header-info > h2")))
+                element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#myModal > div > div > div.modal-header.modal-header-info > h2")))
+                if "not available" in element.text.lower():
+                    raise Exception(element.text)
                 driver.find_element(By.CSS_SELECTOR, "#closebutton").click()
                 driver.implicitly_wait(1)
             
@@ -324,25 +326,26 @@ try:
 
                 # Wait for popup
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#messgdec > div")))
-                status = driver.find_elements(By.XPATH, '//*[@id="messgdec"]/div')[1]
+                # status = driver.find_element(By.XPATH, '//*[@id="messgdec"]/div')
 
-                if "success" not in status.text.lower():
-                    print("An error occured - ", status.text)
-                    print("Current Month - ", month),
-                    print("Current District - ", district)
-                    print("Saving last status...")
+                #! TODO: FIX THIS
+                # if "success" not in status.text.lower():
+                #     print("An error occured - ", status.text)
+                #     print("Current Month - ", month),
+                #     print("Current District - ", district)
+                #     print("Saving last status...")
 
-                    # Save current month and district to a pickle file
-                    current_status = {
-                        'month': last_processed_month,
-                        'district': last_processed_district
-                    }
-                    with open(RESUME_FILE, 'wb') as file:
-                        pickle.dump(current_status, file)
+                #     # Save current month and district to a pickle file
+                #     current_status = {
+                #         'month': last_processed_month,
+                #         'district': last_processed_district
+                #     }
+                #     with open(RESUME_FILE, 'wb') as file:
+                #         pickle.dump(current_status, file)
                     
-                    print("Exiting in 60 seconds...")
-                    time.sleep(60)
-                    exit(1)
+                #     print("Exiting in 60 seconds...")
+                #     time.sleep(60)
+                #     exit(1)
                 
                 # Closing popup
                 element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.LINK_TEXT, "×")))
